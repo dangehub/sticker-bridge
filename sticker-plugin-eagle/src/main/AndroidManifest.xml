@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:allowBackup="false"
+        android:label="Eagle 图库插件"
+        android:supportsRtl="true"
+        android:theme="@android:style/Theme.NoDisplay">
+
+        <service
+            android:name=".EaglePluginService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.example.stickerhelper.STICKER_PLUGIN" />
+            </intent-filter>
+
+            <meta-data
+                android:name="com.example.stickerhelper.plugin_name"
+                android:value="Eagle 图库" />
+            <meta-data
+                android:name="com.example.stickerhelper.plugin_author"
+                android:value="Sticker Bridge" />
+            <meta-data
+                android:name="com.example.stickerhelper.plugin_version"
+                android:value="1.0.0" />
+            <meta-data
+                android:name="com.example.stickerhelper.plugin_description"
+                android:value="从 Eagle 4.0 图库读取表情，支持分类和标签筛选" />
+        </service>
+
+    </application>
+</manifest>

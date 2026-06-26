@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "StickerHelper"
 include(":app")
+include(":sticker-plugin-eagle")
