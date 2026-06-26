@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.DocumentsContract
 import android.provider.Settings
 import android.view.accessibility.AccessibilityManager
 import android.widget.Toast
@@ -104,6 +105,33 @@ private fun PermissionGuide() {
         // 返回后由 LaunchedEffect 更新状态
     }
 
+    // 图库目录选择器
+    var libraryPath by remember { mutableStateOf<String?>(null) }
+    val libraryPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { uri: Uri? ->
+        uri?.let {
+            val resolved = LibraryConfig.saveLibraryUri(context, it)
+            libraryPath = resolved
+            if (resolved != null) {
+                try {
+                    val label = DocumentsContract.getTreeDocumentId(it)
+                        .substringAfter(":")
+                    Toast.makeText(context, "已选择图库：$label", Toast.LENGTH_SHORT).show()
+                } catch (_: Exception) {
+                    Toast.makeText(context, "已选择图库", Toast.LENGTH_SHORT).show()
+                }
+            } else {
+                Toast.makeText(context, "无法解析图库路径", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    // 加载已保存的图库路径
+    LaunchedEffect(Unit) {
+        libraryPath = LibraryConfig.getLibraryPath(context)
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -179,6 +207,21 @@ private fun PermissionGuide() {
             Spacer(modifier = Modifier.height(12.dp))
         }
 
+        //—— 图库配置 ——
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "📁 图库设置",
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 18.sp,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        LibraryCard(
+            libraryPath = libraryPath,
+            onClick = { libraryPickerLauncher.launch(null) },
+        )
+
         Spacer(modifier = Modifier.height(24.dp))
 
         // 使用说明
@@ -197,10 +240,11 @@ private fun PermissionGuide() {
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "1. 开启以上所有权限\n" +
-                            "2. 打开 QQ，进入任意聊天对话框\n" +
-                            "3. ✅ 悬浮球会自动出现在屏幕边缘\n" +
-                            "4. 点击悬浮球 → 选择表情 → 自动分享到 QQ",
+                    text = "1. 选择你的 Eagle 图库目录（上方「图库设置」）\n" +
+                            "2. 开启以上所有权限\n" +
+                            "3. 打开 QQ，进入任意聊天对话框\n" +
+                            "4. ✅ 悬浮球会自动出现在屏幕边缘\n" +
+                            "5. 点击悬浮球 → 选择表情 → 自动分享到 QQ",
                     fontSize = 14.sp,
                     lineHeight = 22.sp,
                     color = Color(0xFF333333),
@@ -221,6 +265,64 @@ private fun PermissionGuide() {
         )
 
         Spacer(modifier = Modifier.height(16.dp))
+    }
+}
+
+@Composable
+private fun LibraryCard(
+    libraryPath: String?,
+    onClick: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "📦",
+                fontSize = 28.sp,
+                modifier = Modifier.size(48.dp),
+            )
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Eagle 图库",
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 16.sp,
+                )
+                Text(
+                    text = if (libraryPath != null) {
+                        val short = libraryPath.substringAfterLast("/")
+                        "✅ $short"
+                    } else {
+                        "❌ 未选择"
+                    },
+                    fontSize = 13.sp,
+                    color = Color.Gray,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            OutlinedButton(
+                onClick = onClick,
+                shape = RoundedCornerShape(8.dp),
+            ) {
+                Text(
+                    text = if (libraryPath != null) "更换" else "选择",
+                    fontSize = 13.sp,
+                )
+            }
+        }
     }
 }
 
@@ -283,7 +385,7 @@ private fun PermissionCard(
                     onClick = onClick,
                     shape = RoundedCornerShape(8.dp),
                 ) {
-                    Text(text = "设置", fontSize = 13.sp)
+                    Text(text = buttonText, fontSize = 13.sp)
                 }
             }
         }
