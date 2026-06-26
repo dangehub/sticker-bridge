@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 悬浮球图标：一个笑脸表情符号风格的圆形 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- 背景圆 -->
+    <path
+        android:fillColor="#FF6200EE"
+        android:pathData="M24,4C12.96,4 4,12.96 4,24s8.96,20 20,20 20,-8.96 20,-20S35.04,4 24,4z" />
+    <!-- 左侧眼睛 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M17,20m-3,0a3,3 0,1 1,6 0a3,3 0,1 1,-6 0" />
+    <!-- 右侧眼睛 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M31,20m-3,0a3,3 0,1 1,6 0a3,3 0,1 1,-6 0" />
+    <!-- 微笑 -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeWidth="2.5"
+        android:strokeColor="#FFFFFF"
+        android:pathData="M15,28c0,0 3,7 9,7s9,-7 9,-7" />
+</vector>

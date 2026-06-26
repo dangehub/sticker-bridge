@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- 笑脸 emoji 风格的图标 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,24c-16.57,0 -30,13.43 -30,30s13.43,30 30,30 30,-13.43 30,-30 -13.43,-30 -30,-30z" />
+    <!-- 左眼 -->
+    <path
+        android:fillColor="#FF6200EE"
+        android:pathData="M44,48m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0" />
+    <!-- 右眼 -->
+    <path
+        android:fillColor="#FF6200EE"
+        android:pathData="M64,48m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0" />
+    <!-- 微笑 -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeWidth="3.5"
+        android:strokeColor="#FF6200EE"
+        android:pathData="M38,62c0,0 6,12 16,12s16,-12 16,-12" />
+    <!-- 脸颊红晕（左侧） -->
+    <path
+        android:fillColor="#FFF48FB1"
+        android:alpha="0.5"
+        android:pathData="M34,56m-7,0a7,5 0,1 1,14 0a7,5 0,1 1,-14 0" />
+    <!-- 脸颊红晕（右侧） -->
+    <path
+        android:fillColor="#FFF48FB1"
+        android:alpha="0.5"
+        android:pathData="M74,56m-7,0a7,5 0,1 1,14 0a7,5 0,1 1,-14 0" />
+</vector>

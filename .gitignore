@@ -1,0 +1,50 @@
+# Built application files
+*.apk
+*.ap_
+*.aab
+
+# Files for the ART/Dalvik VM
+*.dex
+
+# Java class files
+*.class
+
+# Generated files
+bin/
+gen/
+out/
+
+# Gradle files
+.gradle/
+build/
+local.properties
+
+# IDE files
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Gradle wrapper binary (DO track this — needed to build without global Gradle)
+# gradle/wrapper/gradle-wrapper.jar — tracked intentionally
+
+# Proguard
+proguard/
+
+# Logs
+*.log
+
+# Android Studio
+.navigation/
+captures/
+.externalNativeBuild/
+.cxx/
+*.cxx
+*.hxx

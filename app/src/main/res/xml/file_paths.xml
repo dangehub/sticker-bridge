@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- 表情图片存放目录：外部存储的应用专属目录 -->
+    <external-files-path
+        name="stickers"
+        path="stickers/" />
+    <!-- 也支持内部存储 -->
+    <files-path
+        name="internal_stickers"
+        path="stickers/" />
+</paths>
