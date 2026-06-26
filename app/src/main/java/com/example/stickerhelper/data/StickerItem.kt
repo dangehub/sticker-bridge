@@ -18,4 +18,5 @@ data class StickerItem(
     val width: Int,
     val height: Int,
     val modificationTime: Long,
+    val sendCount: Int = 0,   // 由 SendCountTracker 在 UI 层填充，数据源不感知
 )

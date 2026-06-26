@@ -54,12 +54,16 @@ import com.example.stickerhelper.plugin.PluginManager
  * 以半透明 Dialog 形式展示一个表情网格。
  * 用户点击某个表情 → 立即分享到 QQ。
  *
- * v0.2：数据来自 EagleSource（真实图库），支持分类/标签筛选。
+ * v0.3：搜索 + 排序（最新/最常用/名称）+ 发送次数追踪。
  */
 class StickerPickerActivity : ComponentActivity() {
 
+    private lateinit var sendTracker: SendCountTracker
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        sendTracker = SendCountTracker(this)
 
         val libraryUri = LibraryConfig.getLibraryUri(this)
             ?.let { Uri.parse(it) }
@@ -75,6 +79,7 @@ class StickerPickerActivity : ComponentActivity() {
                     context = this,
                     libraryUri = libraryUri,
                     libraryPath = LibraryConfig.getLibraryPath(this) ?: "",
+                    sendTracker = sendTracker,
                     onDismiss = { finish() },
                     onStickerClick = { sticker -> shareToQQ(sticker) }
                 )
@@ -86,6 +91,8 @@ class StickerPickerActivity : ComponentActivity() {
         val imageUri = Uri.parse(sticker.filePath)
         try {
             val intent = QQShareHelper.createShareToFriendIntent(this, imageUri)
+            // 成功构建分享 Intent 即视为一次发送，记录次数
+            sendTracker.increment(sticker.id)
             startActivity(intent)
             finish()
         } catch (e: android.content.ActivityNotFoundException) {
@@ -94,6 +101,7 @@ class StickerPickerActivity : ComponentActivity() {
             Toast.makeText(this, "尝试备用方案…", Toast.LENGTH_SHORT).show()
             try {
                 val fallbackIntent = QQShareHelper.createShareIntent(this, imageUri)
+                sendTracker.increment(sticker.id)
                 startActivity(Intent.createChooser(fallbackIntent, "发送到 QQ"))
                 finish()
             } catch (e2: Exception) {
@@ -105,18 +113,31 @@ class StickerPickerActivity : ComponentActivity() {
     }
 }
 
+/**
+ * 排序方式。
+ *
+ * 排序是 UI 层职责，不影响数据源。
+ */
+enum class SortMode {
+    NEWEST,     // modificationTime 降序
+    MOST_USED,  // sendCount 降序
+    NAME,       // name 升序（忽略大小写）
+}
+
 @Composable
 private fun StickerPickerDialog(
     context: Context,
     libraryUri: Uri,
     libraryPath: String,
+    sendTracker: SendCountTracker,
     onDismiss: () -> Unit,
     onStickerClick: (StickerItem) -> Unit,
 ) {
     var repository by remember { mutableStateOf<StickerRepository?>(null) }
     var loadingStatus by remember { mutableStateOf("正在连接插件…") }
 
-    var stickers by remember { mutableStateOf<List<StickerItem>>(emptyList()) }
+    // 基础数据（已填充 sendCount），后续筛选/搜索/排序都基于此
+    var allStickers by remember { mutableStateOf<List<StickerItem>>(emptyList()) }
     var folders by remember { mutableStateOf<List<Folder>>(emptyList()) }
     var tags by remember { mutableStateOf<List<String>>(emptyList()) }
     var ready by remember { mutableStateOf(false) }
@@ -124,6 +145,13 @@ private fun StickerPickerDialog(
     // 筛选状态
     var selectedFolderId by remember { mutableStateOf<String?>(null) }
     var selectedTags by remember { mutableStateOf<Set<String>>(emptySet()) }
+
+    // 搜索 & 排序状态
+    var searchQuery by remember { mutableStateOf("") }
+    var sortMode by remember { mutableStateOf(SortMode.NEWEST) }
+
+    // 当前展示的（已筛选 + 搜索 + 排序）列表
+    var stickers by remember { mutableStateOf<List<StickerItem>>(emptyList()) }
 
     // 初始加载：先尝试插件，fallback 到内置 EagleSource
     LaunchedEffect(Unit) {
@@ -148,16 +176,47 @@ private fun StickerPickerDialog(
         val repo = repository ?: return@LaunchedEffect
         folders = repo.getFolders()
         tags = repo.getTags()
-        stickers = repo.getAll()
+        // 填充 sendCount：数据源不感知发送次数，由 UI 层从本地存储补齐
+        val counts = sendTracker.getAllCounts()
+        allStickers = repo.getAll().map { it.copy(sendCount = counts[it.id] ?: 0) }
         ready = true
     }
 
-    // 筛选条件变化时重新过滤
-    LaunchedEffect(selectedFolderId, selectedTags) {
-        val repo = repository ?: return@LaunchedEffect
+    // 筛选 / 搜索 / 排序变化时重新计算展示列表
+    // 流程：folder + tags 筛选 → 搜索过滤 → 排序
+    // 全部在 UI 层对 allStickers（含 sendCount）做，保证三者可同时生效且不丢 sendCount
+    LaunchedEffect(allStickers, selectedFolderId, selectedTags, searchQuery, sortMode) {
         if (!ready) return@LaunchedEffect
-        val tagList = selectedTags.takeIf { it.isNotEmpty() }?.toList()
-        stickers = repo.filter(selectedFolderId, tagList)
+
+        // folder id → name（数据源按名称匹配，这里复刻同样的规则）
+        val folderName = selectedFolderId?.let { fid -> folders.flattenIds().firstOrNull { it.first == fid }?.second }
+        val wantedTags = selectedTags.takeIf { it.isNotEmpty() }?.toList()
+        val q = searchQuery.trim()
+
+        stickers = allStickers
+            .asSequence()
+            // 1. folder + tags 筛选
+            .filter { item ->
+                val folderOk = folderName == null || item.folders.contains(folderName)
+                val tagsOk = wantedTags == null || wantedTags.all { tag -> item.tags.contains(tag) }
+                folderOk && tagsOk
+            }
+            // 2. 搜索过滤（匹配 name / annotation / tags，忽略大小写）
+            .filter { item ->
+                if (q.isEmpty()) return@filter true
+                item.name.contains(q, ignoreCase = true) ||
+                    (item.annotation?.contains(q, ignoreCase = true) == true) ||
+                    item.tags.any { it.contains(q, ignoreCase = true) }
+            }
+            .toList()
+            // 3. 排序
+            .let { items ->
+                when (sortMode) {
+                    SortMode.NEWEST -> items.sortedByDescending { it.modificationTime }
+                    SortMode.MOST_USED -> items.sortedByDescending { it.sendCount }
+                    SortMode.NAME -> items.sortedBy { it.name.lowercase() }
+                }
+            }
     }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -179,16 +238,15 @@ private fun StickerPickerDialog(
                     modifier = Modifier.padding(bottom = 12.dp)
                 )
 
-                // 搜索框（下个迭代启用，当前禁用）
+                // 搜索框（实时筛选 name / annotation / tags）
                 OutlinedTextField(
-                    value = "",
-                    onValueChange = {},
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 8.dp),
-                    enabled = false,
-                    placeholder = { Text("搜索（下个迭代开放）") },
                     singleLine = true,
+                    placeholder = { Text("搜索表情（名称/标签/备注）") },
                 )
 
                 // 分类筛选（横向滚动）
@@ -216,6 +274,12 @@ private fun StickerPickerDialog(
                         },
                     )
                 }
+
+                // 排序切换（单选，默认最新）
+                SortRow(
+                    sortMode = sortMode,
+                    onSelect = { sortMode = it },
+                )
 
                 if (!ready) {
                     Text(
@@ -252,6 +316,19 @@ private fun StickerPickerDialog(
             }
         }
     }
+}
+
+/** 递归展开文件夹树为 (id, name) 列表，用于把选中的 folderId 解析成名称。 */
+private fun List<Folder>.flattenIds(): List<Pair<String, String>> {
+    val out = mutableListOf<Pair<String, String>>()
+    fun walk(items: List<Folder>) {
+        for (f in items) {
+            out.add(f.id to f.name)
+            walk(f.children)
+        }
+    }
+    walk(this)
+    return out
 }
 
 @Composable
@@ -299,6 +376,38 @@ private fun TagFilterRow(
             )
         }
     }
+}
+
+@Composable
+private fun SortRow(
+    sortMode: SortMode,
+    onSelect: (SortMode) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 8.dp)
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        SortRowEntry(SortMode.NEWEST, "最新", sortMode, onSelect)
+        SortRowEntry(SortMode.MOST_USED, "最常用", sortMode, onSelect)
+        SortRowEntry(SortMode.NAME, "名称", sortMode, onSelect)
+    }
+}
+
+@Composable
+private fun SortRowEntry(
+    mode: SortMode,
+    label: String,
+    current: SortMode,
+    onSelect: (SortMode) -> Unit,
+) {
+    FilterChip(
+        selected = current == mode,
+        onClick = { onSelect(mode) },
+        label = { Text(label) },
+    )
 }
 
 @Composable
