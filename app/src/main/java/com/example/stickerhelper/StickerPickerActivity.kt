@@ -1,5 +1,6 @@
 package com.example.stickerhelper
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -45,6 +46,7 @@ import coil.compose.rememberAsyncImagePainter
 import com.example.stickerhelper.data.EagleSource
 import com.example.stickerhelper.data.Folder
 import com.example.stickerhelper.data.StickerItem
+import com.example.stickerhelper.plugin.PluginManager
 
 /**
  * 表情选择弹窗。
@@ -67,12 +69,12 @@ class StickerPickerActivity : ComponentActivity() {
             return
         }
 
-        val repository = StickerRepository(EagleSource(this, libraryUri))
-
         setContent {
             MaterialTheme {
                 StickerPickerDialog(
-                    repository = repository,
+                    context = this,
+                    libraryUri = libraryUri,
+                    libraryPath = LibraryConfig.getLibraryPath(this) ?: "",
                     onDismiss = { finish() },
                     onStickerClick = { sticker -> shareToQQ(sticker) }
                 )
@@ -105,11 +107,14 @@ class StickerPickerActivity : ComponentActivity() {
 
 @Composable
 private fun StickerPickerDialog(
-    repository: StickerRepository,
+    context: Context,
+    libraryUri: Uri,
+    libraryPath: String,
     onDismiss: () -> Unit,
     onStickerClick: (StickerItem) -> Unit,
 ) {
-    val context = LocalContext.current
+    var repository by remember { mutableStateOf<StickerRepository?>(null) }
+    var loadingStatus by remember { mutableStateOf("正在连接插件…") }
 
     var stickers by remember { mutableStateOf<List<StickerItem>>(emptyList()) }
     var folders by remember { mutableStateOf<List<Folder>>(emptyList()) }
@@ -120,19 +125,39 @@ private fun StickerPickerDialog(
     var selectedFolderId by remember { mutableStateOf<String?>(null) }
     var selectedTags by remember { mutableStateOf<Set<String>>(emptySet()) }
 
-    // 初始加载：分类、标签、全部表情
+    // 初始加载：先尝试插件，fallback 到内置 EagleSource
     LaunchedEffect(Unit) {
-        folders = repository.getFolders()
-        tags = repository.getTags()
-        stickers = repository.getAll()
+        // 尝试插件
+        val plugin = PluginManager.discoverAndBindFirst(context)
+        if (plugin != null) {
+            loadingStatus = "插件已连接，初始化…"
+            val connected = plugin.awaitConnected()
+            if (connected) {
+                plugin.init(libraryPath)
+                repository = StickerRepository(plugin)
+            }
+        }
+
+        // fallback：插件不可用时用内置 EagleSource
+        if (repository == null) {
+            loadingStatus = "使用内置 EagleSource…"
+            repository = StickerRepository(EagleSource(context, libraryUri))
+        }
+
+        // 加载数据
+        val repo = repository ?: return@LaunchedEffect
+        folders = repo.getFolders()
+        tags = repo.getTags()
+        stickers = repo.getAll()
         ready = true
     }
 
     // 筛选条件变化时重新过滤
     LaunchedEffect(selectedFolderId, selectedTags) {
+        val repo = repository ?: return@LaunchedEffect
         if (!ready) return@LaunchedEffect
         val tagList = selectedTags.takeIf { it.isNotEmpty() }?.toList()
-        stickers = repository.filter(selectedFolderId, tagList)
+        stickers = repo.filter(selectedFolderId, tagList)
     }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -149,7 +174,7 @@ private fun StickerPickerDialog(
             ) {
                 // 标题
                 Text(
-                    text = "选择表情 · ${repository.displayName}",
+                    text = "选择表情 · ${repository?.displayName ?: "…"}",
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.padding(bottom = 12.dp)
                 )
@@ -194,7 +219,7 @@ private fun StickerPickerDialog(
 
                 if (!ready) {
                     Text(
-                        text = "加载中…",
+                        text = loadingStatus,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 48.dp),

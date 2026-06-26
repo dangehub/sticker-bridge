@@ -10,8 +10,12 @@ import android.util.Log
 import com.example.stickerhelper.data.Folder
 import com.example.stickerhelper.data.StickerItem
 import com.example.stickerhelper.data.StickerSource
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 /**
  * 插件包装器：将远程插件 Service 封装为 StickerSource 接口。
@@ -39,6 +43,16 @@ class PluginStickerSource(
     // 缓存的 binder
     @Volatile
     private var binder: IBinder? = null
+    private val connectedLatch = CountDownLatch(1)
+
+    /**
+     * 等待 Service 连接就绪（最多 5 秒）。
+     * bind() 后调用此方法，确保 Binder 可用。
+     */
+    suspend fun awaitConnected(): Boolean = withContext(Dispatchers.IO) {
+        connectedLatch.await(5, TimeUnit.SECONDS)
+        binder != null
+    }
 
     fun init(libraryPath: String) {
         sendQuery("init", """{"libraryPath":"$libraryPath"}""")
@@ -78,6 +92,7 @@ class PluginStickerSource(
             context.bindService(intent, object : ServiceConnection {
                 override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
                     binder = service
+                    connectedLatch.countDown()
                     Log.d(TAG, "Bound to ${pluginInfo.displayName}")
                 }
                 override fun onServiceDisconnected(name: ComponentName?) {
