@@ -1,6 +1,7 @@
 package com.example.stickerhelper
 
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
@@ -114,6 +115,12 @@ class StickerPickerActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        // Activity 被复用（MULTIPLE_TASK 理论上阻止了，但安全兜底）
+        setIntent(intent)
+    }
 }
 
 /**
@@ -193,8 +200,21 @@ private fun StickerPickerDialog(
         // 加载发送目标配置
         val targets = ShareTargetLoader.load(context)
         shareTargets = targets
-        if (selectedTargetId == null && targets.isNotEmpty()) {
-            selectedTargetId = targets.first().id
+        if (targets.isNotEmpty()) {
+            // 从 Intent extra 读取气泡点击瞬间的前台包名（此时用户还在微信/QQ里）
+            val intent = (context as? android.app.Activity)?.intent
+            val foregroundPkg = intent?.getStringExtra("foreground_package")
+            android.util.Log.d("StickerPicker", "foregroundPackage=$foregroundPkg")
+            val matchingTarget = if (foregroundPkg != null) {
+                targets.firstOrNull {
+                    it is com.example.stickerhelper.share.IntentShareTarget &&
+                        it.packageName == foregroundPkg
+                }
+            } else null
+            if (matchingTarget != null) {
+                selectedTargetId = matchingTarget.id
+            }
+            // 匹配不到就留空，用户手动选
         }
     }
 

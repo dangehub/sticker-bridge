@@ -11,10 +11,13 @@
         android:maxSdkVersion="32" />
     <!-- 通知权限（Android 13+） -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 前台应用检测（无无障碍时用） -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
 
-    <!-- Android 11+ 包可见性：检测 QQ 是否安装 -->
+    <!-- Android 11+ 包可见性：检测已启用目标 App 是否安装 -->
     <queries>
         <package android:name="com.tencent.mobileqq" />
+        <package android:name="com.tencent.mm" />
     </queries>
 
     <application
@@ -43,6 +46,8 @@
             android:theme="@style/Theme.StickerPicker"
             android:taskAffinity=""
             android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:finishOnTaskLaunch="true"
             android:windowSoftInputMode="stateAlwaysHidden" />
 
         <!-- 悬浮球前台服务 -->
@@ -51,9 +56,9 @@
             android:exported="false"
             android:foregroundServiceType="specialUse" />
 
-        <!-- QQ 聊天检测无障碍服务 -->
+        <!-- 应用前台检测无障碍服务 -->
         <service
-            android:name=".QQDetectAccessibilityService"
+            android:name=".AppDetectService"
             android:exported="true"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
             <intent-filter>

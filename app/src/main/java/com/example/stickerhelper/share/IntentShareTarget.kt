@@ -43,6 +43,9 @@ class IntentShareTarget(
     private val config: IntentTargetConfig,
 ) : ShareTarget {
 
+    /** 目标 App 的包名，用于前台进程匹配 */
+    val packageName: String get() = config.packageName
+
     override suspend fun share(context: Context, sticker: StickerItem): ShareResult {
         val imageUri = Uri.parse(sticker.filePath)
         val intent = Intent(config.action).apply {
