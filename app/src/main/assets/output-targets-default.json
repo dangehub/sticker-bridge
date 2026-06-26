@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "targets": [
+    {
+      "id": "qq_friend",
+      "name": "QQ 好友",
+      "icon": "💬",
+      "type": "intent",
+      "config": {
+        "packageName": "com.tencent.mobileqq",
+        "componentName": "com.tencent.mobileqq/.activity.JumpActivity",
+        "mimeType": "image/*",
+        "action": "android.intent.action.SEND",
+        "grantReadUriPermission": true
+      }
+    },
+    {
+      "id": "wechat_friend",
+      "name": "微信好友",
+      "icon": "💚",
+      "type": "intent",
+      "config": {
+        "packageName": "com.tencent.mm",
+        "componentName": "com.tencent.mm/.ui.tools.ShareImgUI",
+        "mimeType": "image/*",
+        "action": "android.intent.action.SEND",
+        "grantReadUriPermission": true
+      }
+    },
+    {
+      "id": "clipboard",
+      "name": "复制到剪贴板",
+      "icon": "📋",
+      "type": "clipboard",
+      "config": {}
+    },
+    {
+      "id": "generic_share",
+      "name": "通用分享",
+      "icon": "🌐",
+      "type": "intent",
+      "config": {
+        "mimeType": "image/*",
+        "action": "android.intent.action.SEND",
+        "grantReadUriPermission": true
+      }
+    }
+  ]
+}

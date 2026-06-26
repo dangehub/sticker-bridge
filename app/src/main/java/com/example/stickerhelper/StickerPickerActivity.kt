@@ -1,15 +1,16 @@
 package com.example.stickerhelper
 
 import android.content.Context
-import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -42,19 +43,26 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.lifecycle.lifecycleScope
 import coil.compose.rememberAsyncImagePainter
 import com.example.stickerhelper.data.EagleSource
 import com.example.stickerhelper.data.Folder
 import com.example.stickerhelper.data.StickerItem
 import com.example.stickerhelper.plugin.PluginManager
+import com.example.stickerhelper.share.ShareResult
+import com.example.stickerhelper.share.ShareTarget
+import com.example.stickerhelper.share.ShareTargetLoader
+import kotlinx.coroutines.launch
 
 /**
  * 表情选择弹窗。
  *
  * 以半透明 Dialog 形式展示一个表情网格。
- * 用户点击某个表情 → 立即分享到 QQ。
  *
  * v0.3：搜索 + 排序（最新/最常用/名称）+ 发送次数追踪。
+ * v0.4：输出侧配置化 —— 发送目标由 JSON 加载，不再硬编码到 QQ。
+ *       顶部目标切换行选默认目标，短按即发到该目标；
+ *       长按表情弹出目标选择器，临时指定发送目标。
  */
 class StickerPickerActivity : ComponentActivity() {
 
@@ -81,34 +89,29 @@ class StickerPickerActivity : ComponentActivity() {
                     libraryPath = LibraryConfig.getLibraryPath(this) ?: "",
                     sendTracker = sendTracker,
                     onDismiss = { finish() },
-                    onStickerClick = { sticker -> shareToQQ(sticker) }
+                    onSend = { sticker, target -> onSend(sticker, target) },
                 )
             }
         }
     }
 
-    private fun shareToQQ(sticker: StickerItem) {
-        val imageUri = Uri.parse(sticker.filePath)
-        try {
-            val intent = QQShareHelper.createShareToFriendIntent(this, imageUri)
-            // 成功构建分享 Intent 即视为一次发送，记录次数
-            sendTracker.increment(sticker.id)
-            startActivity(intent)
-            finish()
-        } catch (e: android.content.ActivityNotFoundException) {
-            Toast.makeText(this, "未找到 QQ，请确认已安装", Toast.LENGTH_SHORT).show()
-        } catch (e: IllegalStateException) {
-            Toast.makeText(this, "尝试备用方案…", Toast.LENGTH_SHORT).show()
-            try {
-                val fallbackIntent = QQShareHelper.createShareIntent(this, imageUri)
-                sendTracker.increment(sticker.id)
-                startActivity(Intent.createChooser(fallbackIntent, "发送到 QQ"))
-                finish()
-            } catch (e2: Exception) {
-                Toast.makeText(this, "发送失败", Toast.LENGTH_SHORT).show()
+    /**
+     * 通过选中的 [ShareTarget] 发送表情。
+     *
+     * 配置驱动：所有发送方式（QQ、微信、剪贴板…）走同一条路径，
+     * 成功才记一次发送次数并关闭弹窗，失败 Toast 提示。
+     */
+    private fun onSend(sticker: StickerItem, target: ShareTarget) {
+        lifecycleScope.launch {
+            when (val result = target.share(this@StickerPickerActivity, sticker)) {
+                is ShareResult.Success -> {
+                    sendTracker.increment(sticker.id)
+                    finish()
+                }
+                is ShareResult.Failed -> {
+                    Toast.makeText(this@StickerPickerActivity, result.message, Toast.LENGTH_SHORT).show()
+                }
             }
-        } catch (e: Exception) {
-            Toast.makeText(this, "发送失败：${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 }
@@ -131,7 +134,7 @@ private fun StickerPickerDialog(
     libraryPath: String,
     sendTracker: SendCountTracker,
     onDismiss: () -> Unit,
-    onStickerClick: (StickerItem) -> Unit,
+    onSend: (StickerItem, ShareTarget) -> Unit,
 ) {
     var repository by remember { mutableStateOf<StickerRepository?>(null) }
     var loadingStatus by remember { mutableStateOf("正在连接插件…") }
@@ -153,7 +156,13 @@ private fun StickerPickerDialog(
     // 当前展示的（已筛选 + 搜索 + 排序）列表
     var stickers by remember { mutableStateOf<List<StickerItem>>(emptyList()) }
 
-    // 初始加载：先尝试插件，fallback 到内置 EagleSource
+    // 输出目标状态（配置驱动）
+    var shareTargets by remember { mutableStateOf<List<ShareTarget>>(emptyList()) }
+    var selectedTargetId by remember { mutableStateOf<String?>(null) }
+    // 长按弹出的目标选择器：非空表示正在为该表情选目标
+    var pickerForSticker by remember { mutableStateOf<StickerItem?>(null) }
+
+    // 初始加载：先尝试插件，fallback 到内置 EagleSource；同时加载发送目标
     LaunchedEffect(Unit) {
         // 尝试插件
         val plugin = PluginManager.discoverAndBindFirst(context)
@@ -180,6 +189,13 @@ private fun StickerPickerDialog(
         val counts = sendTracker.getAllCounts()
         allStickers = repo.getAll().map { it.copy(sendCount = counts[it.id] ?: 0) }
         ready = true
+
+        // 加载发送目标配置
+        val targets = ShareTargetLoader.load(context)
+        shareTargets = targets
+        if (selectedTargetId == null && targets.isNotEmpty()) {
+            selectedTargetId = targets.first().id
+        }
     }
 
     // 筛选 / 搜索 / 排序变化时重新计算展示列表
@@ -219,6 +235,8 @@ private fun StickerPickerDialog(
             }
     }
 
+    val selectedTarget = shareTargets.firstOrNull { it.id == selectedTargetId }
+
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier
@@ -237,6 +255,15 @@ private fun StickerPickerDialog(
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.padding(bottom = 12.dp)
                 )
+
+                // 发送目标切换行（短按发到此目标，长按表情另选）
+                if (shareTargets.isNotEmpty()) {
+                    TargetRow(
+                        targets = shareTargets,
+                        selectedId = selectedTargetId,
+                        onSelect = { selectedTargetId = it },
+                    )
+                }
 
                 // 搜索框（实时筛选 name / annotation / tags）
                 OutlinedTextField(
@@ -308,13 +335,37 @@ private fun StickerPickerDialog(
                         items(stickers) { sticker ->
                             StickerCell(
                                 sticker = sticker,
-                                onClick = { onStickerClick(sticker) }
+                                onClick = {
+                                    // 短按：发到当前选中的默认目标
+                                    val target = selectedTarget
+                                    if (target != null) {
+                                        onSend(sticker, target)
+                                    } else {
+                                        Toast.makeText(context, "未配置发送目标", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                onLongClick = {
+                                    // 长按：弹出目标选择器
+                                    pickerForSticker = sticker
+                                },
                             )
                         }
                     }
                 }
             }
         }
+    }
+
+    // 长按目标选择器
+    pickerForSticker?.let { sticker ->
+        ShareTargetPickerDialog(
+            targets = shareTargets,
+            onDismiss = { pickerForSticker = null },
+            onSelect = { target ->
+                pickerForSticker = null
+                onSend(sticker, target)
+            },
+        )
     }
 }
 
@@ -329,6 +380,66 @@ private fun List<Folder>.flattenIds(): List<Pair<String, String>> {
     }
     walk(this)
     return out
+}
+
+@Composable
+private fun TargetRow(
+    targets: List<ShareTarget>,
+    selectedId: String?,
+    onSelect: (String) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 8.dp)
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        targets.forEach { target ->
+            FilterChip(
+                selected = target.id == selectedId,
+                onClick = { onSelect(target.id) },
+                label = { Text("${target.icon} ${target.displayName}") },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ShareTargetPickerDialog(
+    targets: List<ShareTarget>,
+    onDismiss: () -> Unit,
+    onSelect: (ShareTarget) -> Unit,
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            shape = RoundedCornerShape(16.dp),
+            color = Color.White,
+            tonalElevation = 8.dp,
+        ) {
+            Column(modifier = Modifier.padding(8.dp)) {
+                Text(
+                    text = "发送到",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(8.dp),
+                )
+                targets.forEach { target ->
+                    val label = "${target.icon} ${target.displayName}"
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp, horizontal = 8.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { onSelect(target) }
+                            .padding(8.dp),
+                    )
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -410,17 +521,22 @@ private fun SortRowEntry(
     )
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun StickerCell(
     sticker: StickerItem,
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
 ) {
     Box(
         modifier = Modifier
             .aspectRatio(1f)
             .clip(RoundedCornerShape(8.dp))
             .background(Color.White)
-            .clickable(onClick = onClick),
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick,
+            ),
         contentAlignment = Alignment.Center
     ) {
         Image(
