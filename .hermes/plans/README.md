@@ -101,9 +101,22 @@ sticker-bridge/
 
 所有编程任务走 **OpenSpec → Superpowers → gstack**：
 
-1. **OpenSpec** — 在 `.agent/changes/` 下写 proposal，记录目标、涉及文件、边界条件、验收标准、风险
-2. **Superpowers** — 按纪律执行：不改接口签名、写逻辑层测试、不改范围外文件
-3. **gstack** — 编译 → 用户确认 → 自动 commit（按逻辑拆分）
+| 阶段 | 做什么 | 约束文件 |
+|------|--------|----------|
+| **OpenSpec** | 在 `.agent/changes/` 下写 proposal，记录目标、涉及文件、边界条件、验收标准、风险 | `.agent/rules/workflow.md` |
+| **Superpowers** | 按纪律执行：不改接口签名、写逻辑层测试、不改范围外文件 | `.agent/rules/code-quality.md` |
+| **gstack** | 编译 → 用户确认 → 按逻辑拆分 commit | `.agent/rules/workflow.md` |
+
+### 约束文件索引
+
+所有约束文件在 `.agent/rules/` 下，每次开发前**必须**读取：
+
+| 文件 | 内容 |
+|------|------|
+| `AGENTS.md` | 入口约束，优先级最高 |
+| `rules/workflow.md` | OpenSpec / Superpowers / gstack 各阶段执行细则 |
+| `rules/code-quality.md` | Kotlin/Android 代码质量规范、架构约束、测试纪律 |
+| `rules/risk-check.md` | 高风险改动检查清单 |
 
 ---
 
