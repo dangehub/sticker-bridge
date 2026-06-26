@@ -1,35 +1,36 @@
-# 表情助手 (StickerHelper)
+# Sticker Bridge
 
-跨平台表情包管理工具 — 读取 Eagle 图库，在 Android / Windows 上快速发送表情到微信、QQ 等聊天软件。
+Cross-platform sticker manager. Tap to send anywhere on Android, Windows, macOS & iOS.
 
-## 项目状态
+## Project Status
 
-**原型阶段 v0.1** — 仅实现 Android 端：
-- [x] 无障碍服务检测 QQ 聊天界面
-- [x] 悬浮球浮动按钮
-- [x] 点击悬浮球 → 选择表情 → 分享到 QQ
-- [x] 精确跳转 QQ「发送给好友」Activity
-- [ ] 读取 Eagle 图库（`metadata.db` + `images/`）
-- [ ] 分类 / 标签筛选
-- [ ] 搜索
-- [ ] 微信适配
-- [ ] Windows 端
+**Prototype v0.1** — Android only:
+- [x] Accessibility service detects QQ chat dialog
+- [x] Floating draggable bubble overlay
+- [x] Sticker picker with placeholder images
+- [x] Direct share to QQ「Send to Friend」activity
+- [ ] Load stickers from Eagle library / other sources
+- [ ] Category & tag filtering
+- [ ] Search
+- [ ] WeChat support
+- [ ] Windows clipboard integration
+- [ ] macOS / iOS support
 
-## 技术栈
+## Tech Stack
 
-- **平台：** Android
-- **语言：** Kotlin
-- **UI：** Jetpack Compose + Material 3
-- **图片加载：** Coil
-- **无障碍：** AccessibilityService
-- **构建：** Gradle + AGP 8.2.2
-- **数据源：** Eagle SQLite + 图片文件（规划中）
+- **Platform:** Android (prototype), expanding to Windows, macOS, iOS
+- **Language:** Kotlin
+- **UI:** Jetpack Compose + Material 3
+- **Image loading:** Coil
+- **Accessibility:** AccessibilityService
+- **Build:** Gradle + AGP 8.2.2
+- **Data source:** Eagle SQLite + images (planned; extensible to other sources)
 
-## 快速开始
+## Quick Start
 
 ```bash
-git clone <repo-url>
-cd StickerHelper
+git clone https://github.com/dangehub/sticker-bridge.git
+cd sticker-bridge
 ./gradlew assembleDebug
-# APK 输出: app/build/outputs/apk/debug/app-debug.apk
+# APK: app/build/outputs/apk/debug/app-debug.apk
 ```
