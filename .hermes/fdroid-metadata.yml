@@ -1,0 +1,66 @@
+# F-Droid 上架参考
+# ==================
+# 将此文件提交到 https://gitlab.com/fdroid/fdroiddata 
+# metadata/com.example.stickerhelper.yml
+#
+# 详见: https://f-droid.org/docs/Build_Metadata_Reference/
+
+Categories:
+  - Graphics
+  - Connectivity
+
+License: Apache-2.0
+
+AuthorName: 曲淡歌
+AuthorEmail: dangehub@users.noreply.github.com
+SourceCode: https://github.com/dangehub/sticker-bridge
+IssueTracker: https://github.com/dangehub/sticker-bridge/issues
+Changelog: https://github.com/dangehub/sticker-bridge/releases
+
+AutoName: 表情桥
+Name: 表情桥
+Summary: 跨平台表情包快捷发送工具
+Description: |
+  表情桥（Sticker Bridge）是一个跨平台的贴纸管理器，
+  让你在 Android / Windows / macOS / iOS 上共享 Eagle 图库的表情包。
+
+  核心功能：
+  * 从 Eagle 图库加载表情包
+  * 悬浮球点击快速发送到微信/QQ
+  * 剪贴板粘贴发送（微信输入框直接粘贴）
+  * 分类、标签筛选和搜索
+  * 自动检测前台 App 切换发送目标
+
+  依赖说明：
+  * QQ/微信发送需要安装对应 App
+  * 无障碍权限用于自动粘贴（可选，不开仍可手动使用）
+  * 悬浮窗权限用于显示悬浮球
+
+RepoType: git
+Repo: https://github.com/dangehub/sticker-bridge
+
+Builds:
+  - versionName: 0.5.0
+    versionCode: 4
+    commit: v0.5.0  # 需要先打 tag
+    subdir: app
+    sudo:
+      - apt-get update || true
+      - apt-get install -y openssl  # 签名需要
+    gradle:
+      - yes
+
+  # 插件 APK（可选单独上架）
+  # - versionName: 1.0.0
+  #   versionCode: 1
+  #   commit: v0.5.0
+  #   subdir: sticker-plugin-eagle
+  #   gradle:
+  #     - yes
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
+UpdateCheckData: build.gradle.kts|versionCode\s*=\s*(\d+)|app/build.gradle.kts|versionName\s*=\s*"([^"]+)"
+
+CurrentVersion: 0.5.0
+CurrentVersionCode: 4
