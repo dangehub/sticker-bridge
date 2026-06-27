@@ -186,7 +186,7 @@ private fun MainScreen() {
 
         // 标题
         Text(
-            text = "🐱 表情助手",
+            text = "🐱 表情桥",
             fontSize = 28.sp,
             fontWeight = FontWeight.Bold,
         )
