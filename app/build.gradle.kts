@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.stickerhelper"
+    namespace = "com.dangehub.stickerbridge"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.example.stickerhelper"
+        applicationId = "com.dangehub.stickerbridge"
         minSdk = 26
         targetSdk = 34
         versionCode = 4
