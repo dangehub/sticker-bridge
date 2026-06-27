@@ -197,10 +197,16 @@ private fun StickerPickerDialog(
         allStickers = repo.getAll().map { it.copy(sendCount = counts[it.id] ?: 0) }
         ready = true
 
-        // 加载发送目标配置
+        // 加载发送目标配置 + 过滤已禁用的
         val targets = ShareTargetLoader.load(context)
-        shareTargets = targets
-        if (targets.isNotEmpty()) {
+        val enabledTargets = context.getSharedPreferences("target_prefs", Context.MODE_PRIVATE)
+            .getStringSet("enabled_targets", null)
+        shareTargets = if (enabledTargets != null) {
+            targets.filter { it.id in enabledTargets }
+        } else {
+            targets // 首次使用还没配置过，全部显示
+        }
+        if (shareTargets.isNotEmpty()) {
             // 从 Intent extra 读取气泡点击瞬间的前台包名（此时用户还在微信/QQ里）
             val intent = (context as? android.app.Activity)?.intent
             val foregroundPkg = intent?.getStringExtra("foreground_package")

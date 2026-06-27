@@ -104,6 +104,15 @@ class BubbleService : Service() {
         return prefs.getBoolean("edge_shrink", true)
     }
 
+    /** 保存悬浮球位置到偏好设置 */
+    private fun saveBubblePosition(x: Int, y: Int) {
+        getSharedPreferences("bubble_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .putInt("bubble_x", x)
+            .putInt("bubble_y", y)
+            .apply()
+    }
+
     /** 显示悬浮球 */
     private fun showBubble() {
         if (bubbleView != null) {
@@ -156,8 +165,13 @@ class BubbleService : Service() {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.START or Gravity.TOP
-            x = 0
-            y = 200
+            // 恢复上次保存的位置
+            val savedX = getSharedPreferences("bubble_prefs", Context.MODE_PRIVATE)
+                .getInt("bubble_x", 0)
+            val savedY = getSharedPreferences("bubble_prefs", Context.MODE_PRIVATE)
+                .getInt("bubble_y", 200)
+            x = savedX
+            y = savedY
         }
 
         // 触摸处理：短按打开 / 长按拖动
@@ -252,6 +266,9 @@ class BubbleService : Service() {
             params.x = if (snapLeft) 0 else screenWidth - dpToPx(BUBBLE_SIZE_DP)
 
             windowManager.updateViewLayout(bubbleView, params)
+
+            // 保存位置
+            saveBubblePosition(params.x, params.y)
 
             // 可选项：边缘收缩
             if (shrinkEnabled) {
