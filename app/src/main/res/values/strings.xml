@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">表情助手</string>
+    <string name="app_name">表情桥</string>
     <string name="bubble_channel_name">悬浮球服务</string>
     <string name="bubble_channel_desc">用于显示表情选择悬浮球</string>
-    <string name="service_running">表情助手正在运行</string>
+    <string name="service_running">表情桥正在运行</string>
     <string name="permission_overlay_title">需要悬浮窗权限</string>
     <string name="permission_overlay_msg">为了在 QQ 聊天界面显示浮动按钮，请授予悬浮窗权限</string>
     <string name="permission_notification_title">需要通知权限</string>
     <string name="permission_notification_msg">为了保持后台服务运行，请授予通知权限</string>
     <string name="accessibility_title">需要无障碍权限</string>
-    <string name="accessibility_msg">为了检测您何时进入 QQ 聊天界面，请在无障碍设置中开启「表情助手」</string>
+    <string name="accessibility_msg">为了检测您何时进入 QQ 聊天界面，请在无障碍设置中开启「表情桥」</string>
     <string name="btn_open_settings">打开设置</string>
     <string name="btn_grant">授予</string>
     <string name="label_no_stickers">暂无表情，正在生成占位表情…</string>
