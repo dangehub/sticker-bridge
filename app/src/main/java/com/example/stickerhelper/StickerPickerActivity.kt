@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -42,10 +43,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.lifecycleScope
 import coil.compose.rememberAsyncImagePainter
+import coil.request.ImageRequest
 import com.example.stickerhelper.data.EagleSource
 import com.example.stickerhelper.data.Folder
 import com.example.stickerhelper.data.StickerItem
@@ -101,9 +105,28 @@ class StickerPickerActivity : ComponentActivity() {
      *
      * 配置驱动：所有发送方式（QQ、微信、剪贴板…）走同一条路径，
      * 成功才记一次发送次数并关闭弹窗，失败 Toast 提示。
+     *
+     * 微信特殊处理：不走 Intent，改用剪贴板 + 无障碍自动粘贴，
+     * 让用户在微信输入框直接点发送即可。
      */
     private fun onSend(sticker: StickerItem, target: ShareTarget) {
         lifecycleScope.launch {
+            // 微信：GIF 走 Intent（剪贴板粘贴只会静帧），非 GIF 走剪贴板+粘贴
+            if (target.id == "wechat_friend") {
+                val result = if (sticker.fileExtension.equals("gif", ignoreCase = true)) {
+                    target.share(this@StickerPickerActivity, sticker)
+                } else {
+                    handleWeChatPaste(sticker)
+                }
+                if (result is ShareResult.Success) {
+                    sendTracker.increment(sticker.id)
+                    finish()
+                } else if (result is ShareResult.Failed) {
+                    Toast.makeText(this@StickerPickerActivity, result.message, Toast.LENGTH_SHORT).show()
+                }
+                return@launch
+            }
+
             when (val result = target.share(this@StickerPickerActivity, sticker)) {
                 is ShareResult.Success -> {
                     sendTracker.increment(sticker.id)
@@ -116,10 +139,36 @@ class StickerPickerActivity : ComponentActivity() {
         }
     }
 
+    /** 微信模式：复制到剪贴板 + 触发无障碍自动粘贴 */
+    private fun handleWeChatPaste(sticker: StickerItem): ShareResult {
+        return try {
+            // 1. 复制到剪贴板
+            val uri = android.net.Uri.parse(sticker.filePath)
+            val clip = android.content.ClipData.newUri(contentResolver, "Sticker", uri)
+            val cm = getSystemService(android.content.ClipboardManager::class.java)
+            cm.setPrimaryClip(clip)
+            Log.d(TAG, "WeChat paste: copied to clipboard")
+
+            // 2. 触发无障碍自动粘贴
+            AppDetectService.pendingAutoPaste = true
+            AppDetectService.autoPasteTimestamp = System.currentTimeMillis()
+            Log.d(TAG, "WeChat paste: set auto-paste flag")
+
+            ShareResult.Success
+        } catch (e: Exception) {
+            Log.w(TAG, "WeChat paste failed", e)
+            ShareResult.Failed("复制粘贴失败：${e.message}")
+        }
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         // Activity 被复用（MULTIPLE_TASK 理论上阻止了，但安全兜底）
         setIntent(intent)
+    }
+
+    private companion object {
+        private const val TAG = "StickerPicker"
     }
 }
 
@@ -554,6 +603,7 @@ private fun StickerCell(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
 ) {
+    val isGif = sticker.fileExtension.equals("gif", ignoreCase = true)
     Box(
         modifier = Modifier
             .aspectRatio(1f)
@@ -563,15 +613,37 @@ private fun StickerCell(
                 onClick = onClick,
                 onLongClick = onLongClick,
             ),
-        contentAlignment = Alignment.Center
     ) {
         Image(
-            painter = rememberAsyncImagePainter(Uri.parse(sticker.filePath)),
+            painter = rememberAsyncImagePainter(
+                ImageRequest.Builder(LocalContext.current)
+                    .data(Uri.parse(sticker.filePath))
+                    .build()
+            ),
             contentDescription = sticker.name,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(4.dp),
+                .padding(4.dp)
+                .align(Alignment.Center),
             contentScale = ContentScale.Fit,
         )
+
+        // GIF 标识：右上角
+        if (isGif) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(4.dp))
+                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                    .padding(top = 2.dp, end = 2.dp)
+            ) {
+                Text(
+                    text = "GIF",
+                    color = Color.White,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        }
     }
 }

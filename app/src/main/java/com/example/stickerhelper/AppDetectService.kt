@@ -24,6 +24,7 @@ class AppDetectService : AccessibilityService() {
     companion object {
         private const val TAG = "AppDetect"
         private const val AUTO_SEND_TIMEOUT_MS = 3000L
+        private const val AUTO_PASTE_TIMEOUT_MS = 5000L
 
         /** 当前运行的服务实例（供外部实时查询） */
         private var serviceInstance: AppDetectService? = null
@@ -55,6 +56,14 @@ class AppDetectService : AccessibilityService() {
         /** 当前前台 App 的包名（仅在聊天中时有效） */
         @Volatile
         var currentForegroundPackage: String? = null
+
+        /** 标记：需要自动粘贴到当前输入框（微信剪贴板粘贴模式） */
+        @Volatile
+        var pendingAutoPaste: Boolean = false
+
+        /** 自动粘贴的时间戳（用于超时判断） */
+        @Volatile
+        var autoPasteTimestamp: Long = 0L
 
         /**
          * 实时查询当前前台 App 包名，通过无障碍服务实例。
@@ -191,6 +200,18 @@ class AppDetectService : AccessibilityService() {
         try {
             val hasFocusedInput = findFocusedInput(rootNode)
             updateChatState(hasFocusedInput)
+
+            // 自动粘贴：如果有待处理的粘贴请求，且输入框有焦点
+            if (hasFocusedInput && pendingAutoPaste) {
+                // 超时检查（5秒后自动清除）
+                if (autoPasteTimestamp > 0 && System.currentTimeMillis() - autoPasteTimestamp > AUTO_PASTE_TIMEOUT_MS) {
+                    Log.w(TAG, "Auto-paste expired, clearing")
+                    pendingAutoPaste = false
+                    autoPasteTimestamp = 0L
+                } else {
+                    performAutoPaste()
+                }
+            }
         } catch (e: Exception) {
             Log.w(TAG, "Error checking input focus", e)
         } finally {
@@ -258,6 +279,45 @@ class AppDetectService : AccessibilityService() {
             }
         }
 
+        return null
+    }
+
+    /** 执行自动粘贴到当前获得焦点的输入框 */
+    private fun performAutoPaste() {
+        val rootNode = rootInActiveWindow ?: return
+        try {
+            val focusedInput = findFocusedInputNode(rootNode)
+            if (focusedInput != null) {
+                val success = focusedInput.performAction(AccessibilityNodeInfo.ACTION_PASTE)
+                Log.d(TAG, "Auto-paste: performed=${success} on ${focusedInput.className}")
+                if (success) {
+                    pendingAutoPaste = false
+                    autoPasteTimestamp = 0L
+                }
+            } else {
+                Log.w(TAG, "Auto-paste: no focused input found")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Auto-paste error", e)
+        } finally {
+            rootNode.recycle()
+        }
+    }
+
+    /** 递归查找获得焦点的输入框节点 */
+    private fun findFocusedInputNode(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        if (node.isFocused) {
+            return AccessibilityNodeInfo.obtain(node)
+        }
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            try {
+                val result = findFocusedInputNode(child)
+                if (result != null) return result
+            } finally {
+                child.recycle()
+            }
+        }
         return null
     }
 
